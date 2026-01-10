@@ -1,0 +1,287 @@
+const Appointment = require("../models/Appointment");
+const Doctor = require("../models/Doctor");
+const User = require("../models/User");
+const { createNotification } = require("./notification.controller");
+const {
+  sendAppointmentConfirmation,
+  sendDoctorNotification,
+  sendCancellationEmail,
+} = require("../utils/emailService");
+
+// Create a new appointment (Patient)
+exports.createAppointment = async (req, res) => {
+  try {
+    const {
+      doctorId,
+      appointmentDate,
+      appointmentTime,
+      consultationType,
+      reasonForVisit,
+    } = req.body;
+
+    // Check if doctor exists
+    const doctor = await Doctor.findById(doctorId).populate("user");
+    if (!doctor)
+      return res.status(404).json({ message: "Doctor not found" });
+
+    // Check if user is a patient
+    if (req.user.role !== "patient")
+      return res
+        .status(403)
+        .json({ message: "Only patients can book appointments" });
+
+    const appointment = await Appointment.create({
+      patient: req.user._id,
+      doctor: doctorId,
+      appointmentDate,
+      appointmentTime,
+      consultationType,
+      reasonForVisit,
+    });
+
+    // Send email to doctor
+    await sendDoctorNotification(doctor.user.email, {
+      patientName: req.user.name,
+      date: new Date(appointmentDate).toLocaleDateString(),
+      time: appointmentTime,
+      consultationType,
+      reason: reasonForVisit || "Not specified",
+    });
+
+    // Create in-app notification for doctor
+    await createNotification({
+      recipient: doctor.user._id,
+      sender: req.user._id,
+      type: "appointment_booked",
+      title: "New Appointment Request",
+      message: `${req.user.name} has booked an appointment with you on ${new Date(
+        appointmentDate
+      ).toLocaleDateString()} at ${appointmentTime}`,
+      relatedAppointment: appointment._id,
+    });
+
+    res.status(201).json(appointment);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get all appointments for logged-in user (patient or doctor)
+exports.getMyAppointments = async (req, res) => {
+  try {
+    let appointments;
+
+    if (req.user.role === "patient") {
+      appointments = await Appointment.find({ patient: req.user._id })
+        .populate("doctor")
+        .populate({
+          path: "doctor",
+          populate: { path: "user", select: "name email" },
+        });
+    } else if (req.user.role === "doctor") {
+      // Find the doctor profile for this user
+      const doctorProfile = await Doctor.findOne({ user: req.user._id });
+      if (!doctorProfile)
+        return res.status(404).json({ message: "Doctor profile not found" });
+
+      appointments = await Appointment.find({ doctor: doctorProfile._id })
+        .populate("patient", "name email age gender");
+    } else {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    res.json(appointments);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get a single appointment by ID
+exports.getAppointmentById = async (req, res) => {
+  try {
+    const appointment = await Appointment.findById(req.params.id)
+      .populate("patient", "name email age gender")
+      .populate({
+        path: "doctor",
+        populate: { path: "user", select: "name email" },
+      });
+
+    if (!appointment)
+      return res.status(404).json({ message: "Appointment not found" });
+
+    // Check if user is authorized to view this appointment
+    const doctorProfile = await Doctor.findOne({ user: req.user._id });
+    const isPatient = appointment.patient._id.toString() === req.user._id.toString();
+    const isDoctor = doctorProfile && appointment.doctor._id.toString() === doctorProfile._id.toString();
+
+    if (!isPatient && !isDoctor) {
+      return res.status(403).json({ message: "Not authorized to view this appointment" });
+    }
+
+    res.json(appointment);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Update appointment status (Doctor can confirm/complete, Patient/Doctor can cancel)
+exports.updateAppointmentStatus = async (req, res) => {
+  try {
+    const { status, notes, prescription, cancelReason } = req.body;
+
+    const appointment = await Appointment.findById(req.params.id)
+      .populate("patient", "name email")
+      .populate({
+        path: "doctor",
+        populate: { path: "user", select: "name email" },
+      });
+
+    if (!appointment)
+      return res.status(404).json({ message: "Appointment not found" });
+
+    // Authorization check
+    const doctorProfile = await Doctor.findOne({ user: req.user._id });
+    const isPatient = appointment.patient._id.toString() === req.user._id.toString();
+    const isDoctor = doctorProfile && appointment.doctor._id.toString() === doctorProfile._id.toString();
+
+    if (!isPatient && !isDoctor) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    // Only doctors can confirm or complete appointments
+    if ((status === "confirmed" || status === "completed") && !isDoctor) {
+      return res
+        .status(403)
+        .json({ message: "Only doctors can confirm or complete appointments" });
+    }
+
+    const previousStatus = appointment.status;
+
+    // Handle cancellation
+    if (status === "cancelled") {
+      appointment.status = "cancelled";
+      appointment.cancelledBy = req.user.role;
+      appointment.cancelReason = cancelReason || "";
+
+      // Send cancellation emails
+      await sendCancellationEmail(appointment.patient.email, {
+        doctorName: appointment.doctor.user.name,
+        date: new Date(appointment.appointmentDate).toLocaleDateString(),
+        time: appointment.appointmentTime,
+        cancelledBy: req.user.role,
+        reason: cancelReason,
+      });
+
+      if (isPatient) {
+        await sendCancellationEmail(appointment.doctor.user.email, {
+          doctorName: appointment.patient.name,
+          date: new Date(appointment.appointmentDate).toLocaleDateString(),
+          time: appointment.appointmentTime,
+          cancelledBy: "patient",
+          reason: cancelReason,
+        });
+      }
+
+      // Create in-app notifications
+      const recipientId = isPatient ? appointment.doctor.user._id : appointment.patient._id;
+      await createNotification({
+        recipient: recipientId,
+        sender: req.user._id,
+        type: "appointment_cancelled",
+        title: "Appointment Cancelled",
+        message: `Appointment on ${new Date(
+          appointment.appointmentDate
+        ).toLocaleDateString()} at ${appointment.appointmentTime} has been cancelled`,
+        relatedAppointment: appointment._id,
+      });
+    } else {
+      appointment.status = status;
+
+      // Send confirmation email when doctor confirms
+      if (status === "confirmed" && previousStatus === "pending") {
+        await sendAppointmentConfirmation(appointment.patient.email, {
+          doctorName: appointment.doctor.user.name,
+          date: new Date(appointment.appointmentDate).toLocaleDateString(),
+          time: appointment.appointmentTime,
+          consultationType: appointment.consultationType,
+        });
+
+        // Create in-app notification for patient
+        await createNotification({
+          recipient: appointment.patient._id,
+          sender: req.user._id,
+          type: "appointment_confirmed",
+          title: "Appointment Confirmed",
+          message: `Dr. ${appointment.doctor.user.name} has confirmed your appointment on ${new Date(
+            appointment.appointmentDate
+          ).toLocaleDateString()} at ${appointment.appointmentTime}`,
+          relatedAppointment: appointment._id,
+        });
+      }
+
+      // Notify patient when appointment is completed
+      if (status === "completed" && previousStatus !== "completed") {
+        await createNotification({
+          recipient: appointment.patient._id,
+          sender: req.user._id,
+          type: "appointment_completed",
+          title: "Appointment Completed",
+          message: `Your appointment with Dr. ${appointment.doctor.user.name} has been completed`,
+          relatedAppointment: appointment._id,
+        });
+      }
+    }
+
+    // Doctors can add notes and prescriptions
+    if (isDoctor) {
+      if (notes) appointment.notes = notes;
+      if (prescription) {
+        appointment.prescription = prescription;
+
+        // Notify patient about prescription
+        await createNotification({
+          recipient: appointment.patient._id,
+          sender: req.user._id,
+          type: "prescription_added",
+          title: "Prescription Added",
+          message: `Dr. ${appointment.doctor.user.name} has added a prescription to your appointment`,
+          relatedAppointment: appointment._id,
+        });
+      }
+    }
+
+    await appointment.save();
+
+    res.json(appointment);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Delete appointment (only if pending and by the patient who created it)
+exports.deleteAppointment = async (req, res) => {
+  try {
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment)
+      return res.status(404).json({ message: "Appointment not found" });
+
+    // Only the patient who created it can delete
+    if (appointment.patient.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    // Can only delete if still pending
+    if (appointment.status !== "pending") {
+      return res
+        .status(400)
+        .json({ message: "Can only delete pending appointments" });
+    }
+
+    await appointment.deleteOne();
+
+    res.json({ message: "Appointment deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

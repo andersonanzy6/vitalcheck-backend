@@ -1,0 +1,27 @@
+const express = require("express");
+const cors = require("cors");
+
+const authRoutes = require("./routes/auth.routes");
+const doctorRoutes = require("./routes/doctor.routes");
+const appointmentRoutes = require("./routes/appointment.routes");
+const medicalRecordRoutes = require("./routes/medicalRecord.routes");
+const notificationRoutes = require("./routes/notification.routes");
+const chatRoutes = require("./routes/chat.routes");
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+app.use("/api/auth", authRoutes);
+app.use("/api/doctors", doctorRoutes);
+app.use("/api/appointments", appointmentRoutes);
+app.use("/api/medical-records", medicalRecordRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/chat", chatRoutes);
+
+app.get("/", (req, res) => {
+  res.json({ status: "API running" });
+});
+
+module.exports = app;
