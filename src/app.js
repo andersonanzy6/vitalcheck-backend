@@ -7,6 +7,9 @@ const appointmentRoutes = require("./routes/appointment.routes");
 const medicalRecordRoutes = require("./routes/medicalRecord.routes");
 const notificationRoutes = require("./routes/notification.routes");
 const chatRoutes = require("./routes/chat.routes");
+const aiChatRoutes = require("./routes/ai-chat.routes");
+const adminRoutes = require("./routes/admin.routes");
+const paymentRoutes = require("./routes/payment.routes");
 
 const app = express();
 
@@ -19,6 +22,9 @@ app.use("/api/appointments", appointmentRoutes);
 app.use("/api/medical-records", medicalRecordRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/ai-chat", aiChatRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/payments", paymentRoutes);
 
 app.get("/", (req, res) => {
   res.json({ status: "API running" });

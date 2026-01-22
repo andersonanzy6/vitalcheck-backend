@@ -24,8 +24,19 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      enum: ["patient", "doctor", "parent"],
+      enum: ["patient", "doctor", "parent", "admin"],
       default: "patient",
+    },
+
+    status: {
+      type: String,
+      enum: ["active", "suspended", "pending", "rejected"],
+      default: "active",
+    },
+
+    isAdmin: {
+      type: Boolean,
+      default: false,
     },
 
     age: Number,
