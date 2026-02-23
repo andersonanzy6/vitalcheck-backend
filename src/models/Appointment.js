@@ -32,7 +32,7 @@ const appointmentSchema = new mongoose.Schema(
 
     consultationType: {
       type: String,
-      enum: ["video", "audio", "chat"],
+      enum: ["video", "audio", "chat", "consultation", "follow-up", "check-up", "emergency", "checkup"],
       required: true,
     },
 

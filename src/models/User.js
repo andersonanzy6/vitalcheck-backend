@@ -47,6 +47,20 @@ const userSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    bio: {
+      type: String,
+      default: "",
+    },
+
+    profileImage: {
+      type: String,
+      default: null, // URL to Cloudinary image
+    },
+
+    cloudinaryImageId: {
+      type: String,
+      default: null, // Cloudinary public_id for deletion
+    },
   },
   { timestamps: true }
 );

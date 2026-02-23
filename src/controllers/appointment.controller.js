@@ -285,3 +285,79 @@ exports.deleteAppointment = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// Reschedule appointment (Patient or Doctor can reschedule)
+exports.rescheduleAppointment = async (req, res) => {
+  try {
+    const { newAppointmentDate, newAppointmentTime } = req.body;
+
+    // Validate new date and time are provided
+    if (!newAppointmentDate || !newAppointmentTime) {
+      return res.status(400).json({ message: "New date and time are required" });
+    }
+
+    const appointment = await Appointment.findById(req.params.id)
+      .populate("patient", "name email")
+      .populate({
+        path: "doctor",
+        populate: { path: "user", select: "name email" },
+      });
+
+    if (!appointment)
+      return res.status(404).json({ message: "Appointment not found" });
+
+    // Authorization check
+    const doctorProfile = await Doctor.findOne({ user: req.user._id });
+    const isPatient = appointment.patient._id.toString() === req.user._id.toString();
+    const isDoctor = doctorProfile && appointment.doctor._id.toString() === doctorProfile._id.toString();
+
+    if (!isPatient && !isDoctor) {
+      return res.status(403).json({ message: "Not authorized to reschedule this appointment" });
+    }
+
+    // Can only reschedule pending or confirmed appointments
+    if (!["pending", "confirmed"].includes(appointment.status)) {
+      return res.status(400).json({ message: "Can only reschedule pending or confirmed appointments" });
+    }
+
+    // Store old details for notification
+    const oldDate = new Date(appointment.appointmentDate).toLocaleDateString();
+    const oldTime = appointment.appointmentTime;
+
+    // Update appointment with new date and time
+    appointment.appointmentDate = newAppointmentDate;
+    appointment.appointmentTime = newAppointmentTime;
+    await appointment.save();
+
+    // Send notifications to both parties
+    const recipientEmail = isPatient ? appointment.doctor.user.email : appointment.patient.email;
+    const requesterName = isPatient ? appointment.patient.name : appointment.doctor.user.name;
+
+    await sendAppointmentConfirmation(recipientEmail, {
+      doctorName: appointment.doctor.user.name,
+      date: new Date(newAppointmentDate).toLocaleDateString(),
+      time: newAppointmentTime,
+      consultationType: appointment.consultationType,
+    });
+
+    // Create in-app notification
+    const recipientId = isPatient ? appointment.doctor.user._id : appointment.patient._id;
+    await createNotification({
+      recipient: recipientId,
+      sender: req.user._id,
+      type: "appointment_rescheduled",
+      title: "Appointment Rescheduled",
+      message: `${requesterName} has rescheduled your appointment from ${oldDate} at ${oldTime} to ${new Date(
+        newAppointmentDate
+      ).toLocaleDateString()} at ${newAppointmentTime}`,
+      relatedAppointment: appointment._id,
+    });
+
+    res.json({
+      message: "Appointment rescheduled successfully",
+      appointment,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

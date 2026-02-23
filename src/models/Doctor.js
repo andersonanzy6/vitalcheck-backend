@@ -44,6 +44,20 @@ const doctorSchema = new mongoose.Schema(
         to: { type: String }, // "17:00"
       },
     ],
+    consultationFee: {
+      type: Number,
+      default: null,
+    },
+
+    clinicAddress: {
+      type: String,
+      default: '',
+    },
+
+    phone: {
+      type: String,
+      default: '',
+    },
   },
   { timestamps: true }
 );

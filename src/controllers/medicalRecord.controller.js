@@ -3,6 +3,50 @@ const { cloudinary } = require("../config/cloudinary");
 const User = require("../models/User");
 const Doctor = require("../models/Doctor");
 
+// Get all medical records (for authenticated users - patients see their own, doctors see their patients')
+exports.getAllRecords = async (req, res) => {
+  try {
+    let records;
+
+    if (req.user.role === "patient") {
+      // Patients can only see their own records
+      records = await MedicalRecord.find({ patient: req.user._id })
+        .populate("uploadedBy", "name email role")
+        .populate("appointment")
+        .sort({ createdAt: -1 });
+    } else if (req.user.role === "doctor") {
+      // Doctors can see records of patients they have appointments with
+      const doctorProfile = await Doctor.findOne({ user: req.user._id });
+      if (doctorProfile) {
+        // Get all appointments for this doctor
+        const Appointment = require("../models/Appointment");
+        const appointments = await Appointment.find({ doctor: doctorProfile._id }).distinct("patient");
+
+        // Get records for those patients
+        records = await MedicalRecord.find({ patient: { $in: appointments } })
+          .populate("uploadedBy", "name email role")
+          .populate("appointment")
+          .populate("patient", "name email")
+          .sort({ createdAt: -1 });
+      } else {
+        return res.status(404).json({ message: "Doctor profile not found" });
+      }
+    } else if (req.user.role === "admin") {
+      // Admins can see all records
+      records = await MedicalRecord.find()
+        .populate("uploadedBy", "name email role")
+        .populate("appointment")
+        .populate("patient", "name email")
+        .sort({ createdAt: -1 });
+    } else {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    res.json(records);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 // Upload a medical record
 exports.uploadRecord = async (req, res) => {
   try {

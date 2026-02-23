@@ -59,3 +59,41 @@ exports.login = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// Update user profile
+exports.updateProfile = async (req, res) => {
+  try {
+    const { name, age, gender, bio, profileImage } = req.body;
+
+    // Find user by ID from token
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Only allow updating certain fields
+    if (name) user.name = name;
+    if (age !== undefined) user.age = age;
+    if (gender) user.gender = gender;
+    if (bio !== undefined) user.bio = bio;
+    if (profileImage) user.profileImage = profileImage;
+
+    await user.save();
+
+    res.json({
+      message: "Profile updated successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        age: user.age,
+        gender: user.gender,
+        bio: user.bio,
+        profileImage: user.profileImage,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
