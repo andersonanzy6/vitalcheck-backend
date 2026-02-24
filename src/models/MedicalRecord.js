@@ -36,6 +36,11 @@ const medicalRecordSchema = new mongoose.Schema(
       default: "",
     },
 
+    date: {
+      type: Date,
+      default: Date.now,
+    },
+
     fileUrl: {
       type: String,
       required: true, // Cloudinary URL

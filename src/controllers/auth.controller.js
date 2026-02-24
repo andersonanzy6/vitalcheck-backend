@@ -63,7 +63,10 @@ exports.login = async (req, res) => {
 // Update user profile
 exports.updateProfile = async (req, res) => {
   try {
-    const { name, age, gender, bio, profileImage } = req.body;
+    const {
+      name, age, gender, bio,
+      phone, address, medicalHistory, bloodGroup
+    } = req.body;
 
     // Find user by ID from token
     const user = await User.findById(req.user._id);
@@ -71,12 +74,27 @@ exports.updateProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // Handle File Uploads
+    if (req.files) {
+      if (req.files.profileImage && req.files.profileImage[0]) {
+        user.profileImage = req.files.profileImage[0].path;
+        user.cloudinaryImageId = req.files.profileImage[0].filename;
+      }
+      if (req.files.coverImage && req.files.coverImage[0]) {
+        user.coverImage = req.files.coverImage[0].path;
+        user.cloudinaryCoverId = req.files.coverImage[0].filename;
+      }
+    }
+
     // Only allow updating certain fields
     if (name) user.name = name;
     if (age !== undefined) user.age = age;
     if (gender) user.gender = gender;
     if (bio !== undefined) user.bio = bio;
-    if (profileImage) user.profileImage = profileImage;
+    if (phone !== undefined) user.phone = phone;
+    if (address !== undefined) user.address = address;
+    if (medicalHistory !== undefined) user.medicalHistory = medicalHistory;
+    if (bloodGroup !== undefined) user.bloodGroup = bloodGroup;
 
     await user.save();
 
@@ -90,7 +108,12 @@ exports.updateProfile = async (req, res) => {
         age: user.age,
         gender: user.gender,
         bio: user.bio,
+        phone: user.phone,
+        address: user.address,
+        medicalHistory: user.medicalHistory,
+        bloodGroup: user.bloodGroup,
         profileImage: user.profileImage,
+        coverImage: user.coverImage,
       },
     });
   } catch (error) {

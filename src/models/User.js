@@ -61,6 +61,36 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null, // Cloudinary public_id for deletion
     },
+
+    coverImage: {
+      type: String,
+      default: null, // URL to Cloudinary image
+    },
+
+    cloudinaryCoverId: {
+      type: String,
+      default: null, // Cloudinary public_id for deletion
+    },
+
+    phone: {
+      type: String,
+      default: "",
+    },
+
+    address: {
+      type: String,
+      default: "",
+    },
+
+    medicalHistory: {
+      type: String,
+      default: "",
+    },
+
+    bloodGroup: {
+      type: String,
+      default: "",
+    },
   },
   { timestamps: true }
 );

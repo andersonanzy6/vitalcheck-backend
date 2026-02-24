@@ -54,7 +54,7 @@ exports.uploadRecord = async (req, res) => {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    const { patientId, appointmentId, recordType, title, description } = req.body;
+    const { patientId, appointmentId, recordType, title, description, date } = req.body;
 
     let finalPatientId;
 
@@ -82,6 +82,7 @@ exports.uploadRecord = async (req, res) => {
       recordType,
       title,
       description,
+      date: date || new Date(),
       fileUrl: req.file.path, // Cloudinary URL
       fileType: req.file.mimetype,
       cloudinaryId: req.file.filename, // Cloudinary public_id
