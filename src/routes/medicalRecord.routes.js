@@ -6,7 +6,6 @@ const {
   getAppointmentRecords,
   getRecordById,
   deleteRecord,
-  deleteRecord,
   getAllRecords,
 } = require("../controllers/medicalRecord.controller");
 const auth = require("../middleware/auth.middleware");
