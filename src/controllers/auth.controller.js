@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const Doctor = require("../models/Doctor");
 const bcrypt = require("bcryptjs");
 const generateToken = require("../utils/jwt");
 
@@ -68,7 +69,7 @@ exports.getProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json({
+    const response = {
       id: user._id,
       name: user.name,
       email: user.email,
@@ -82,7 +83,16 @@ exports.getProfile = async (req, res) => {
       bloodGroup: user.bloodGroup,
       profileImage: user.profileImage,
       coverImage: user.coverImage,
-    });
+    };
+
+    if (user.role === 'doctor') {
+      const doctor = await Doctor.findOne({ user: user._id });
+      if (doctor) {
+        response.doctorProfile = doctor;
+      }
+    }
+
+    res.json(response);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

@@ -69,7 +69,7 @@ exports.updateDoctorProfile = async (req, res) => {
     const doctor = await Doctor.findOneAndUpdate(
       { user: req.user._id },
       { $set: updates },
-      { new: true, runValidators: true }
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
     ).populate('user', 'name email');
 
     if (!doctor) return res.status(404).json({ message: "Doctor profile not found" });
