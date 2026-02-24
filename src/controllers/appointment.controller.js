@@ -24,6 +24,11 @@ exports.createAppointment = async (req, res) => {
     if (!doctor)
       return res.status(404).json({ message: "Doctor not found" });
 
+    // Check if doctor has an associated user profile
+    if (!doctor.user) {
+      return res.status(404).json({ message: "Doctor's user profile not found" });
+    }
+
     // Check if user is a patient
     if (req.user.role !== "patient")
       return res
@@ -39,17 +44,17 @@ exports.createAppointment = async (req, res) => {
       reasonForVisit,
     });
 
-    // Send email to doctor
-    await sendDoctorNotification(doctor.user.email, {
+    // Send email to doctor (non-blocking side effect)
+    sendDoctorNotification(doctor.user.email, {
       patientName: req.user.name,
       date: new Date(appointmentDate).toLocaleDateString(),
       time: appointmentTime,
       consultationType,
       reason: reasonForVisit || "Not specified",
-    });
+    }).catch(err => console.error("Email notification failed:", err));
 
-    // Create in-app notification for doctor
-    await createNotification({
+    // Create in-app notification for doctor (non-blocking side effect)
+    createNotification({
       recipient: doctor.user._id,
       sender: req.user._id,
       type: "appointment_booked",
@@ -58,10 +63,11 @@ exports.createAppointment = async (req, res) => {
         appointmentDate
       ).toLocaleDateString()} at ${appointmentTime}`,
       relatedAppointment: appointment._id,
-    });
+    }).catch(err => console.error("In-app notification failed:", err));
 
     res.status(201).json(appointment);
   } catch (error) {
+    console.error("DEBUG - Create Appointment Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
