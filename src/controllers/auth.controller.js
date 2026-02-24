@@ -60,6 +60,34 @@ exports.login = async (req, res) => {
   }
 };
 
+// Get current user profile
+exports.getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      age: user.age,
+      gender: user.gender,
+      bio: user.bio,
+      phone: user.phone,
+      address: user.address,
+      medicalHistory: user.medicalHistory,
+      bloodGroup: user.bloodGroup,
+      profileImage: user.profileImage,
+      coverImage: user.coverImage,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // Update user profile
 exports.updateProfile = async (req, res) => {
   try {
