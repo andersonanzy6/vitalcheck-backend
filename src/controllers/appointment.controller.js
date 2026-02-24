@@ -169,28 +169,28 @@ exports.updateAppointmentStatus = async (req, res) => {
       appointment.cancelledBy = req.user.role;
       appointment.cancelReason = cancelReason || "";
 
-      // Send cancellation emails
-      await sendCancellationEmail(appointment.patient.email, {
+      // Send cancellation emails (non-blocking)
+      sendCancellationEmail(appointment.patient.email, {
         doctorName: appointment.doctor.user.name,
         date: new Date(appointment.appointmentDate).toLocaleDateString(),
         time: appointment.appointmentTime,
         cancelledBy: req.user.role,
         reason: cancelReason,
-      });
+      }).catch(err => console.error("Cancellation email failed:", err));
 
       if (isPatient) {
-        await sendCancellationEmail(appointment.doctor.user.email, {
+        sendCancellationEmail(appointment.doctor.user.email, {
           doctorName: appointment.patient.name,
           date: new Date(appointment.appointmentDate).toLocaleDateString(),
           time: appointment.appointmentTime,
           cancelledBy: "patient",
           reason: cancelReason,
-        });
+        }).catch(err => console.error("Cancellation email to doctor failed:", err));
       }
 
-      // Create in-app notifications
+      // Create in-app notifications (non-blocking)
       const recipientId = isPatient ? appointment.doctor.user._id : appointment.patient._id;
-      await createNotification({
+      createNotification({
         recipient: recipientId,
         sender: req.user._id,
         type: "appointment_cancelled",
@@ -199,21 +199,21 @@ exports.updateAppointmentStatus = async (req, res) => {
           appointment.appointmentDate
         ).toLocaleDateString()} at ${appointment.appointmentTime} has been cancelled`,
         relatedAppointment: appointment._id,
-      });
+      }).catch(err => console.error("Cancellation notification failed:", err));
     } else {
       appointment.status = status;
 
-      // Send confirmation email when doctor confirms
+      // Send confirmation email when doctor confirms (non-blocking)
       if (status === "confirmed" && previousStatus === "pending") {
-        await sendAppointmentConfirmation(appointment.patient.email, {
+        sendAppointmentConfirmation(appointment.patient.email, {
           doctorName: appointment.doctor.user.name,
           date: new Date(appointment.appointmentDate).toLocaleDateString(),
           time: appointment.appointmentTime,
           consultationType: appointment.consultationType,
-        });
+        }).catch(err => console.error("Confirmation email failed:", err));
 
-        // Create in-app notification for patient
-        await createNotification({
+        // Create in-app notification for patient (non-blocking)
+        createNotification({
           recipient: appointment.patient._id,
           sender: req.user._id,
           type: "appointment_confirmed",
@@ -222,19 +222,19 @@ exports.updateAppointmentStatus = async (req, res) => {
             appointment.appointmentDate
           ).toLocaleDateString()} at ${appointment.appointmentTime}`,
           relatedAppointment: appointment._id,
-        });
+        }).catch(err => console.error("Confirmation notification failed:", err));
       }
 
-      // Notify patient when appointment is completed
+      // Notify patient when appointment is completed (non-blocking)
       if (status === "completed" && previousStatus !== "completed") {
-        await createNotification({
+        createNotification({
           recipient: appointment.patient._id,
           sender: req.user._id,
           type: "appointment_completed",
           title: "Appointment Completed",
           message: `Your appointment with Dr. ${appointment.doctor.user.name} has been completed`,
           relatedAppointment: appointment._id,
-        });
+        }).catch(err => console.error("Completion notification failed:", err));
       }
     }
 
@@ -244,15 +244,15 @@ exports.updateAppointmentStatus = async (req, res) => {
       if (prescription) {
         appointment.prescription = prescription;
 
-        // Notify patient about prescription
-        await createNotification({
+        // Notify patient about prescription (non-blocking)
+        createNotification({
           recipient: appointment.patient._id,
           sender: req.user._id,
           type: "prescription_added",
           title: "Prescription Added",
           message: `Dr. ${appointment.doctor.user.name} has added a prescription to your appointment`,
           relatedAppointment: appointment._id,
-        });
+        }).catch(err => console.error("Prescription notification failed:", err));
       }
     }
 
@@ -260,6 +260,7 @@ exports.updateAppointmentStatus = async (req, res) => {
 
     res.json(appointment);
   } catch (error) {
+    console.error("DEBUG - Update Appointment Status Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -335,20 +336,20 @@ exports.rescheduleAppointment = async (req, res) => {
     appointment.appointmentTime = newAppointmentTime;
     await appointment.save();
 
-    // Send notifications to both parties
+    // Send notifications to both parties (non-blocking)
     const recipientEmail = isPatient ? appointment.doctor.user.email : appointment.patient.email;
     const requesterName = isPatient ? appointment.patient.name : appointment.doctor.user.name;
 
-    await sendAppointmentConfirmation(recipientEmail, {
+    sendAppointmentConfirmation(recipientEmail, {
       doctorName: appointment.doctor.user.name,
       date: new Date(newAppointmentDate).toLocaleDateString(),
       time: newAppointmentTime,
       consultationType: appointment.consultationType,
-    });
+    }).catch(err => console.error("Reschedule email failed:", err));
 
-    // Create in-app notification
+    // Create in-app notification (non-blocking)
     const recipientId = isPatient ? appointment.doctor.user._id : appointment.patient._id;
-    await createNotification({
+    createNotification({
       recipient: recipientId,
       sender: req.user._id,
       type: "appointment_rescheduled",
@@ -357,13 +358,14 @@ exports.rescheduleAppointment = async (req, res) => {
         newAppointmentDate
       ).toLocaleDateString()} at ${newAppointmentTime}`,
       relatedAppointment: appointment._id,
-    });
+    }).catch(err => console.error("Reschedule notification failed:", err));
 
     res.json({
       message: "Appointment rescheduled successfully",
       appointment,
     });
   } catch (error) {
+    console.error("DEBUG - Reschedule Appointment Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
