@@ -229,8 +229,27 @@ Summary:`;
 
 exports.symptomCheck = async (req, res) => {
   try {
-    const { messages } = req.body; // Array of messages for the flow
-    const userId = req.user.id;
+    // Validate auth context
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Not authorized" });
+    }
+
+    // Validate payload
+    const { messages } = req.body || {};
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ message: "messages array is required" });
+    }
+    for (const m of messages) {
+      if (!m || typeof m.content !== "string" || typeof m.sender !== "string") {
+        return res.status(400).json({ message: "each message must include sender and content strings" });
+      }
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      console.error("GEMINI_API_KEY is missing in environment");
+      return res.status(500).json({ message: "AI service not configured. Please contact support." });
+    }
 
     const SYMPTOM_CHECK_PROMPT = `You are a medical symptom checker. Your goal is to guide the user through a structured diagnostic flow:
 1. Identify the primary symptom.
@@ -264,6 +283,7 @@ AI:`;
       const cleanJson = responseText.replace(/```json|```/g, "").trim();
       jsonResponse = JSON.parse(cleanJson);
     } catch (e) {
+      console.warn("SymptomCheck JSON parse failed; returning fallback structure", e?.message);
       jsonResponse = {
         message: responseText,
         possibleConditions: [],
@@ -273,12 +293,21 @@ AI:`;
       };
     }
 
-    // Log the query
+    // Ensure required fields exist in response
+    jsonResponse.message = typeof jsonResponse.message === "string" && jsonResponse.message.trim() ? jsonResponse.message : "Can you describe your main symptom?";
+    jsonResponse.possibleConditions = Array.isArray(jsonResponse.possibleConditions) ? jsonResponse.possibleConditions : [];
+    jsonResponse.urgencyLevel = typeof jsonResponse.urgencyLevel === "string" ? jsonResponse.urgencyLevel : "Unknown";
+    jsonResponse.suggestDoctor = typeof jsonResponse.suggestDoctor === "boolean" ? jsonResponse.suggestDoctor : true;
+    jsonResponse.flowStep = typeof jsonResponse.flowStep === "string" ? jsonResponse.flowStep : "unknown";
+
+    // Log the query with minimal PII
     console.log(`Symptom Check for User ${userId}: ${jsonResponse.urgencyLevel}`);
 
-    res.json(jsonResponse);
+    return res.json(jsonResponse);
   } catch (error) {
     console.error("Symptom Check Error:", error);
-    res.status(500).json({ message: "Failed to process symptom check" });
+    const status = error?.response?.status || 500;
+    const message = error?.response?.data?.error || error.message || "Failed to process symptom check";
+    return res.status(status).json({ message });
   }
 };
