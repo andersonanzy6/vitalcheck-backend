@@ -2,6 +2,7 @@ const AIChat = require("../models/AIChat");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
 
 const SYSTEM_PROMPT = `You are a helpful health information assistant. You provide general health information, wellness tips, and educational content about common health conditions.
 
@@ -51,7 +52,7 @@ exports.sendMessage = async (req, res) => {
     });
 
     // Get AI response using Gemini
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
     // Build conversation history for context
     const chatHistory = conversation.messages.map((msg) => ({
@@ -205,7 +206,7 @@ exports.getDischargeSummary = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
     const summaryPrompt = `Based on this health consultation conversation, provide a brief summary (3-4 sentences) of the key points discussed:
 
@@ -273,7 +274,7 @@ ${messages.map(m => `${m.sender}: ${m.content}`).join("\n")}
 
 AI:`;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
     const result = await model.generateContent(SYMPTOM_CHECK_PROMPT);
     const responseText = result.response.text();
 
