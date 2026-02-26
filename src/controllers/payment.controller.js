@@ -12,24 +12,26 @@ exports.initiatePayment = async (req, res) => {
 
     // Validate appointment exists
     const appointment = await Appointment.findById(appointmentId)
-      .populate("doctorId", "name specialization");
-    
+      .populate({ path: "doctor", populate: { path: "user", select: "name email" } })
+      .populate("patient", "name email");
+
     if (!appointment) {
       return res.status(404).json({ message: "Appointment not found" });
     }
 
-    if (appointment.patientId.toString() !== userId) {
+    if (appointment.patient._id.toString() !== userId) {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
     const user = await User.findById(userId);
-    const doctor = appointment.doctorId;
+    const doctor = appointment.doctor;       // Doctor document
+    const doctorUser = doctor.user;          // User document for the doctor
 
     // Create payment record
     const payment = new Payment({
       userId,
       appointmentId,
-      doctorId: doctor._id,
+      doctorId: doctorUser._id,             // Payment.doctorId refs User, not Doctor
       amount: amount || 100, // Default $100 consultation fee
       paymentMethod,
       paymentGateway,
@@ -37,9 +39,9 @@ exports.initiatePayment = async (req, res) => {
       paymentInitiatedAt: new Date(),
       metadata: {
         appointmentDate: appointment.appointmentDate,
-        doctorName: doctor.name,
+        doctorName: doctorUser.name,
         patientName: user.name,
-        appointmentReason: appointment.reason,
+        appointmentReason: appointment.reasonForVisit,
       },
     });
 
@@ -50,7 +52,7 @@ exports.initiatePayment = async (req, res) => {
 
     switch (paymentGateway) {
       case "flutterwave":
-        paymentLink = await generateFlutterwaveLink(payment, user, doctor);
+        paymentLink = await generateFlutterwaveLink(payment, user, doctorUser);
         break;
       case "paypal":
         paymentLink = await generatePayPalLink(payment, user);
@@ -95,7 +97,7 @@ async function generateFlutterwaveLink(payment, user, doctor) {
         },
         customizations: {
           title: "Health Consultant Appointment",
-          description: `Payment for appointment with Dr. ${doctor.name}`,
+          description: `Payment for appointment with Dr. ${doctor.name || "your doctor"}`,
           logo: "https://your-app-logo.png",
         },
         meta: {

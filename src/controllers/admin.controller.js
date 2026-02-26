@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const Appointment = require("../models/Appointment");
 const Message = require("../models/Message");
 const Notification = require("../models/Notification");
 
@@ -54,9 +55,11 @@ exports.getUserById = async (req, res) => {
     // Get user's appointments if doctor
     let appointments = [];
     if (user.role === "doctor") {
-      appointments = await Appointment.find({
-        doctorId: user._id,
-      }).limit(5);
+      const Doctor = require("../models/Doctor");
+      const doctorProfile = await Doctor.findOne({ user: user._id });
+      if (doctorProfile) {
+        appointments = await Appointment.find({ doctor: doctorProfile._id }).limit(5);
+      }
     }
 
     res.json({
@@ -450,9 +453,9 @@ exports.getActivityLog = async (req, res) => {
 
     // Get recent appointments and messages as activity
     const recentAppointments = await Appointment.find()
-      .populate("patientId", "name")
-      .populate("doctorId", "name")
-      .select("patientId doctorId status createdAt")
+      .populate("patient", "name")
+      .populate({ path: "doctor", populate: { path: "user", select: "name" } })
+      .select("patient doctor status createdAt")
       .limit(parseInt(limit))
       .skip(skip)
       .sort({ createdAt: -1 });

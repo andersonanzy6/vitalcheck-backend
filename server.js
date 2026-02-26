@@ -237,10 +237,18 @@ io.on("connection", (socket) => {
         pending.doctorId = newDoctor.user._id.toString();
         pendingConsultations.set(queueId, pending);
 
-        // Start new timer for the new doctor
-        pending.timer = setTimeout(() => {
-          // Recursive timeout logic or similar
-          // For simplicity, re-using the logic manually here or abstracting it would be better
+        // Start new timer for the new doctor — notify patient if they also don't respond
+        pending.timer = setTimeout(async () => {
+          const stillPending = pendingConsultations.get(queueId);
+          if (stillPending) {
+            const patientSocketId = activeUsers.get(stillPending.patientId);
+            if (patientSocketId) {
+              io.to(patientSocketId).emit("consultation-failed", {
+                message: "No doctors are currently available. Please try again later.",
+              });
+            }
+            pendingConsultations.delete(queueId);
+          }
         }, 120000);
 
         const newDoctorSocketId = activeUsers.get(pending.doctorId);
