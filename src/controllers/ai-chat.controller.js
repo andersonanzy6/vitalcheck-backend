@@ -1,9 +1,8 @@
 const AIChat = require("../models/AIChat");
-const { GoogleGenerativeAI } = require("@google/genai");
+const { GoogleGenAI } = require("@google/genai");
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-// Use gemini-1.5-flash which is available in @google/genai
-// Supports: gemini-1.5-flash, gemini-1.5-pro, gemini-2.0-flash-exp
+const ai = new GoogleGenAI({});
+// Supported models: gemini-1.5-flash, gemini-1.5-pro, gemini-2.0-flash-exp
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
 
 const SYSTEM_PROMPT = `You are a helpful health information assistant. You provide general health information, wellness tips, and educational content about common health conditions.
@@ -54,27 +53,35 @@ exports.sendMessage = async (req, res) => {
     });
 
     // Get AI response using Gemini
-    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+    // Build system + conversation history
+    const contents = [
+      {
+        role: "user",
+        parts: [{ text: SYSTEM_PROMPT }],
+      },
+      {
+        role: "model",
+        parts: [{ text: "I understand. I'm a health information assistant and will provide educational content while encouraging proper medical consultation." }],
+      },
+    ];
 
-    // Build conversation history for context
-    const chatHistory = conversation.messages.map((msg) => ({
-      role: msg.sender === "user" ? "user" : "model",
-      parts: [{ text: msg.content }],
-    }));
+    // Add previous conversation history
+    for (const msg of conversation.messages) {
+      contents.push({
+        role: msg.sender === "user" ? "user" : "model",
+        parts: [{ text: msg.content }],
+      });
+    }
 
-    // Remove the last user message from history since we'll start fresh
-    chatHistory.pop();
-
-    const chat = model.startChat({
-      history: chatHistory.length > 0 ? chatHistory : undefined,
+    const result = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents,
       generationConfig: {
         maxOutputTokens: 1024,
         temperature: 0.7,
       },
     });
-
-    const result = await chat.sendMessage(message);
-    const aiResponse = result.response.text();
+    const aiResponse = result.text();
 
     // Add AI response to conversation
     conversation.messages.push({
@@ -208,8 +215,6 @@ exports.getDischargeSummary = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-
     const summaryPrompt = `Based on this health consultation conversation, provide a brief summary (3-4 sentences) of the key points discussed:
 
 ${conversation.messages
@@ -218,8 +223,11 @@ ${conversation.messages
 
 Summary:`;
 
-    const result = await model.generateContent(summaryPrompt);
-    const summary = result.response.text();
+    const result = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: [{ role: "user", parts: [{ text: summaryPrompt }] }],
+    });
+    const summary = result.text();
 
     res.json({
       conversationId,
@@ -276,9 +284,11 @@ ${messages.map(m => `${m.sender}: ${m.content}`).join("\n")}
 
 AI:`;
 
-    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-    const result = await model.generateContent(SYMPTOM_CHECK_PROMPT);
-    const responseText = result.response.text();
+    const result = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: [{ role: "user", parts: [{ text: SYMPTOM_CHECK_PROMPT }] }],
+    });
+    const responseText = result.text();
 
     // Try to parse JSON from AI response
     let jsonResponse;
