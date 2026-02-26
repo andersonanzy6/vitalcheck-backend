@@ -3,9 +3,9 @@ const { GoogleGenAI } = require("@google/genai");
 const { symptomCheckCache } = require("../utils/cache");
 
 const ai = new GoogleGenAI({});
-// Use lightweight model for better free tier rate limits
-// Available: gemini-3-1b-it (lightweight), gemini-2.0-flash, gemini-2.5-flash
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3-1b-it";
+// Use gemini-2.0-flash: confirmed to support generateContent
+// Lightweight models like gemini-3-1b-it don't support generateContent in v1beta API
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
 const SYSTEM_PROMPT = `You are a helpful health information assistant. You provide general health information, wellness tips, and educational content about common health conditions.
 
