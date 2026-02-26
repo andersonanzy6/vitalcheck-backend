@@ -5,21 +5,51 @@ const generateToken = require("../utils/jwt");
 
 exports.register = async (req, res) => {
   try {
-    const { name, email, password, role, age, gender, guardian } = req.body;
+    const { name, email, password, role, age, gender, guardian, phone, specialization, licenseNumber, experience, placeOfWork, location } = req.body;
 
     const userExists = await User.findOne({ email });
     if (userExists)
       return res.status(400).json({ message: "User already exists" });
 
+    // Handle File Uploads for Registration
+    let profileImageUrl = null;
+    let licenseDocumentUrl = null;
+
+    if (req.files) {
+      if (req.files.profileImage && req.files.profileImage[0]) {
+        profileImageUrl = req.files.profileImage[0].path;
+      }
+      if (req.files.licenseUpload && req.files.licenseUpload[0]) {
+        licenseDocumentUrl = req.files.licenseUpload[0].path;
+      }
+    }
+
     const user = await User.create({
       name,
       email,
-      password,  // <-- FIXED: just use 'password' here
+      password,
       role,
       age,
       gender,
+      phone: phone || "",
+      profileImage: profileImageUrl,
       guardian: guardian || null,
+      status: role === "doctor" ? "pending" : "active",
     });
+
+    if (role === "doctor") {
+      await Doctor.create({
+        user: user._id,
+        specialization: specialization || "",
+        licenseNumber: licenseNumber || "",
+        experience: experience || 0,
+        placeOfWork: placeOfWork || "",
+        location: location || "",
+        licenseDocumentUrl: licenseDocumentUrl || "",
+        phone: phone || "",
+        verificationStatus: "pending",
+      });
+    }
 
     res.status(201).json({
       token: generateToken(user._id),

@@ -26,6 +26,8 @@ const notificationSchema = new mongoose.Schema(
         "new_message",
         "prescription_added",
         "system",
+        "account_approved",
+        "account_rejected",
       ],
       required: true,
     },

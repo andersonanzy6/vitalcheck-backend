@@ -1,17 +1,17 @@
 const User = require("../models/User");
-const Appointment = require("../models/Appointment");
 const Message = require("../models/Message");
+const Notification = require("../models/Notification");
 
 // ============ USER MANAGEMENT ============
 exports.getAllUsers = async (req, res) => {
   try {
     const { role, status, search, page = 1, limit = 10 } = req.query;
-    
+
     let query = {};
-    
+
     if (role) query.role = role;
     if (status) query.status = status;
-    
+
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: "i" } },
@@ -46,7 +46,7 @@ exports.getAllUsers = async (req, res) => {
 exports.getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.userId).select("-password");
-    
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -164,6 +164,18 @@ exports.approveDoctorRegistration = async (req, res) => {
       return res.status(404).json({ message: "Doctor not found" });
     }
 
+    // Sync with Doctor model verificationStatus
+    const Doctor = require("../models/Doctor");
+    await Doctor.findOneAndUpdate({ user: doctorId }, { verificationStatus: "approved" });
+
+    // Create Notification
+    await Notification.create({
+      recipient: doctorId,
+      type: "account_approved",
+      title: "Account Approved",
+      message: "Congratulations! Your doctor registration has been approved. You can now access all features.",
+    });
+
     // TODO: Send approval email to doctor
 
     res.json({
@@ -189,6 +201,18 @@ exports.rejectDoctorRegistration = async (req, res) => {
     if (!doctor) {
       return res.status(404).json({ message: "Doctor not found" });
     }
+
+    // Sync with Doctor model verificationStatus
+    const Doctor = require("../models/Doctor");
+    await Doctor.findOneAndUpdate({ user: doctorId }, { verificationStatus: "rejected" });
+
+    // Create Notification
+    await Notification.create({
+      recipient: doctorId,
+      type: "account_rejected",
+      title: "Registration Rejected",
+      message: `Unfortunately, your registration was rejected. Reason: ${reason || "Documents criteria not met."}`,
+    });
 
     // TODO: Send rejection email with reason
 

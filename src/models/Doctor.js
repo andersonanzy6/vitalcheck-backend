@@ -58,6 +58,32 @@ const doctorSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+
+    licenseDocumentUrl: {
+      type: String,
+      default: '',
+    },
+
+    placeOfWork: {
+      type: String,
+      default: '',
+    },
+
+    location: {
+      type: String,
+      default: '',
+    },
+
+    isOnline: {
+      type: Boolean,
+      default: false,
+    },
+
+    verificationStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
   },
   { timestamps: true }
 );

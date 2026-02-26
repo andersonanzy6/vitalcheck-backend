@@ -88,7 +88,7 @@ exports.sendMessage = async (req, res) => {
     });
   } catch (error) {
     console.error("AI Chat Error:", error);
-    
+
     if (error.message?.includes("API key")) {
       return res.status(500).json({
         message: "AI service not configured. Please check backend setup.",
@@ -142,8 +142,8 @@ exports.getConversationHistory = async (req, res) => {
       title: conv.title,
       topic: conv.topic,
       status: conv.status,
-      lastMessage: conv.messages.length > 0 
-        ? conv.messages[conv.messages.length - 1].content 
+      lastMessage: conv.messages.length > 0
+        ? conv.messages[conv.messages.length - 1].content
         : "No messages",
       messageCount: conv.messages.length,
       createdAt: conv.createdAt,
@@ -210,8 +210,8 @@ exports.getDischargeSummary = async (req, res) => {
     const summaryPrompt = `Based on this health consultation conversation, provide a brief summary (3-4 sentences) of the key points discussed:
 
 ${conversation.messages
-  .map((msg) => `${msg.sender.toUpperCase()}: ${msg.content}`)
-  .join("\n")}
+        .map((msg) => `${msg.sender.toUpperCase()}: ${msg.content}`)
+        .join("\n")}
 
 Summary:`;
 
@@ -224,5 +224,61 @@ Summary:`;
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+exports.symptomCheck = async (req, res) => {
+  try {
+    const { messages } = req.body; // Array of messages for the flow
+    const userId = req.user.id;
+
+    const SYMPTOM_CHECK_PROMPT = `You are a medical symptom checker. Your goal is to guide the user through a structured diagnostic flow:
+1. Identify the primary symptom.
+2. Ask about duration.
+3. Ask about severity.
+4. Provide potential conditions (clearly stating these are NOT diagnoses).
+5. Determine urgency level (Low, Medium, High, Emergency).
+6. Strongly suggest a doctor consultation if urgency is not Low.
+
+Respond ONLY in JSON format with the following fields:
+{
+  "message": "The AI's next question or response",
+  "possibleConditions": ["condition1", "condition2"],
+  "urgencyLevel": "Low/Medium/High/Emergency",
+  "suggestDoctor": true/false,
+  "flowStep": "symptom/duration/severity/result"
+}
+
+Current Conversation:
+${messages.map(m => `${m.sender}: ${m.content}`).join("\n")}
+
+AI:`;
+
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const result = await model.generateContent(SYMPTOM_CHECK_PROMPT);
+    const responseText = result.response.text();
+
+    // Try to parse JSON from AI response
+    let jsonResponse;
+    try {
+      const cleanJson = responseText.replace(/```json|```/g, "").trim();
+      jsonResponse = JSON.parse(cleanJson);
+    } catch (e) {
+      jsonResponse = {
+        message: responseText,
+        possibleConditions: [],
+        urgencyLevel: "Unknown",
+        suggestDoctor: true,
+        flowStep: "unknown"
+      };
+    }
+
+    // Log the query
+    console.log(`Symptom Check for User ${userId}: ${jsonResponse.urgencyLevel}`);
+
+    res.json(jsonResponse);
+  } catch (error) {
+    console.error("Symptom Check Error:", error);
+    res.status(500).json({ message: "Failed to process symptom check" });
   }
 };
