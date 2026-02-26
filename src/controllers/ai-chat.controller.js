@@ -1,10 +1,10 @@
 const AIChat = require("../models/AIChat");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenerativeAI } = require("@google/genai");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-// Use gemini-pro which is available in v1beta API
-// If using newer SDK versions, switch to: gemini-1.5-flash or gemini-2.0-flash-exp
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-pro";
+// Use gemini-1.5-flash which is available in @google/genai
+// Supports: gemini-1.5-flash, gemini-1.5-pro, gemini-2.0-flash-exp
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
 
 const SYSTEM_PROMPT = `You are a helpful health information assistant. You provide general health information, wellness tips, and educational content about common health conditions.
 
