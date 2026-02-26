@@ -2,7 +2,11 @@ const AIChat = require("../models/AIChat");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+// Remove '-latest' suffix if present; use stable model names only
+const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-1.5-flash").replace(
+  /-latest$/,
+  ""
+);
 
 const SYSTEM_PROMPT = `You are a helpful health information assistant. You provide general health information, wellness tips, and educational content about common health conditions.
 
