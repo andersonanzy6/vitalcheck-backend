@@ -1,10 +1,11 @@
 const AIChat = require("../models/AIChat");
 const { GoogleGenAI } = require("@google/genai");
+const { symptomCheckCache } = require("../utils/cache");
 
 const ai = new GoogleGenAI({});
-// Available models: gemini-2.5-flash, gemini-2.5-pro, gemini-2.0-flash, etc.
-// Use gemini-2.0-flash for stable, fast health assistant
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+// Use lightweight model for better free tier rate limits
+// Available: gemini-3-1b-it (lightweight), gemini-2.0-flash, gemini-2.5-flash
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3-1b-it";
 
 const SYSTEM_PROMPT = `You are a helpful health information assistant. You provide general health information, wellness tips, and educational content about common health conditions.
 
@@ -263,6 +264,14 @@ exports.symptomCheck = async (req, res) => {
       return res.status(500).json({ message: "AI service not configured. Please contact support." });
     }
 
+    // Check cache first to reduce API calls
+    const cacheKey = symptomCheckCache.generateKey(messages);
+    const cachedResponse = symptomCheckCache.get(cacheKey);
+    if (cachedResponse) {
+      console.log(`[CACHE HIT] Symptom check for User ${userId}`);
+      return res.json({ ...cachedResponse, fromCache: true });
+    }
+
     const SYMPTOM_CHECK_PROMPT = `You are a medical symptom checker. Your goal is to guide the user through a structured diagnostic flow:
 1. Identify the primary symptom.
 2. Ask about duration.
@@ -315,7 +324,10 @@ AI:`;
     jsonResponse.flowStep = typeof jsonResponse.flowStep === "string" ? jsonResponse.flowStep : "unknown";
 
     // Log the query with minimal PII
-    console.log(`Symptom Check for User ${userId}: ${jsonResponse.urgencyLevel}`);
+    console.log(`[CACHE MISS] Symptom Check for User ${userId}: ${jsonResponse.urgencyLevel}`);
+
+    // Cache the response for future requests
+    symptomCheckCache.set(cacheKey, jsonResponse);
 
     return res.json(jsonResponse);
   } catch (error) {
