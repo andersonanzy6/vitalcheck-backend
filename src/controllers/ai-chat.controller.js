@@ -2,8 +2,9 @@ const AIChat = require("../models/AIChat");
 const { GoogleGenAI } = require("@google/genai");
 
 const ai = new GoogleGenAI({});
-// Supported models: gemini-1.5-flash, gemini-1.5-pro, gemini-2.0-flash-exp
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+// Available models: gemini-2.5-flash, gemini-2.5-pro, gemini-2.0-flash, etc.
+// Use gemini-2.0-flash for stable, fast health assistant
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
 const SYSTEM_PROMPT = `You are a helpful health information assistant. You provide general health information, wellness tips, and educational content about common health conditions.
 
