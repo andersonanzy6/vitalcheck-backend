@@ -6,8 +6,8 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-// Available Groq models: mixtral-8x7b-32768, llama2-70b-4096
-const GROQ_MODEL = process.env.GROQ_MODEL || "mixtral-8x7b-32768";
+// Current available models: llama-3.1-70b-versatile, llama-3.1-8b-instant, gemma2-9b-it
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.1-70b-versatile";
 
 const SYSTEM_PROMPT = `You are a helpful health information assistant. You provide general health information, wellness tips, and educational content about common health conditions.
 
