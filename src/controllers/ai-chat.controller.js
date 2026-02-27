@@ -1,11 +1,13 @@
 const AIChat = require("../models/AIChat");
-const { GoogleGenAI } = require("@google/genai");
+const Groq = require("groq-sdk");
 const { symptomCheckCache } = require("../utils/cache");
 
-const ai = new GoogleGenAI({});
-// Use gemini-2.0-flash: confirmed to support generateContent
-// Lightweight models like gemini-3-1b-it don't support generateContent in v1beta API
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
+
+// Available Groq models: mixtral-8x7b-32768, llama2-70b-4096
+const GROQ_MODEL = process.env.GROQ_MODEL || "mixtral-8x7b-32768";
 
 const SYSTEM_PROMPT = `You are a helpful health information assistant. You provide general health information, wellness tips, and educational content about common health conditions.
 
@@ -54,36 +56,30 @@ exports.sendMessage = async (req, res) => {
       content: message,
     });
 
-    // Get AI response using Gemini
+    // Get AI response using Groq
     // Build system + conversation history
-    const contents = [
-      {
-        role: "user",
-        parts: [{ text: SYSTEM_PROMPT }],
-      },
-      {
-        role: "model",
-        parts: [{ text: "I understand. I'm a health information assistant and will provide educational content while encouraging proper medical consultation." }],
-      },
+    const messages = [
+      { role: "system", content: SYSTEM_PROMPT },
     ];
 
     // Add previous conversation history
     for (const msg of conversation.messages) {
-      contents.push({
-        role: msg.sender === "user" ? "user" : "model",
-        parts: [{ text: msg.content }],
+      messages.push({
+        role: msg.sender === "user" ? "user" : "assistant",
+        content: msg.content,
       });
     }
 
-    const result = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents,
-      generationConfig: {
-        maxOutputTokens: 1024,
-        temperature: 0.7,
-      },
+    // Add current user message
+    messages.push({ role: "user", content: message });
+
+    const result = await groq.chat.completions.create({
+      model: GROQ_MODEL,
+      messages,
+      temperature: 0.7,
+      max_tokens: 1024,
     });
-    const aiResponse = result.text();
+    const aiResponse = result.choices[0].message.content;
 
     // Add AI response to conversation
     conversation.messages.push({
@@ -217,19 +213,27 @@ exports.getDischargeSummary = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    const summaryPrompt = `Based on this health consultation conversation, provide a brief summary (3-4 sentences) of the key points discussed:
+    const messages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `Based on this health consultation conversation, provide a brief summary (3-4 sentences) of the key points discussed:
 
 ${conversation.messages
-        .map((msg) => `${msg.sender.toUpperCase()}: ${msg.content}`)
-        .join("\n")}
+          .map((msg) => `${msg.sender.toUpperCase()}: ${msg.content}`)
+          .join("\n")}
 
-Summary:`;
+Summary:`,
+      },
+    ];
 
-    const result = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: [{ role: "user", parts: [{ text: summaryPrompt }] }],
+    const result = await groq.chat.completions.create({
+      model: GROQ_MODEL,
+      messages,
+      temperature: 0.7,
+      max_tokens: 512,
     });
-    const summary = result.text();
+    const summary = result.choices[0].message.content;
 
     res.json({
       conversationId,
@@ -259,8 +263,8 @@ exports.symptomCheck = async (req, res) => {
       }
     }
 
-    if (!process.env.GEMINI_API_KEY) {
-      console.error("GEMINI_API_KEY is missing in environment");
+    if (!process.env.GROQ_API_KEY) {
+      console.error("GROQ_API_KEY is missing in environment");
       return res.status(500).json({ message: "AI service not configured. Please contact support." });
     }
 
@@ -294,11 +298,22 @@ ${messages.map(m => `${m.sender}: ${m.content}`).join("\n")}
 
 AI:`;
 
-    const result = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: [{ role: "user", parts: [{ text: SYMPTOM_CHECK_PROMPT }] }],
+    // Build messages array for Groq API
+    const apiMessages = [
+      { role: "system", content: SYMPTOM_CHECK_PROMPT },
+      ...messages.map((m) => ({
+        role: m.sender === "user" ? "user" : "assistant",
+        content: m.content,
+      })),
+    ];
+
+    const result = await groq.chat.completions.create({
+      model: GROQ_MODEL,
+      messages: apiMessages,
+      temperature: 0.5,
+      max_tokens: 1024,
     });
-    const responseText = result.text();
+    const responseText = result.choices[0].message.content;
 
     // Try to parse JSON from AI response
     let jsonResponse;
