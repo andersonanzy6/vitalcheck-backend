@@ -6,8 +6,8 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-// Current available models: llama-3.1-70b-versatile, llama-3.1-8b-instant, gemma2-9b-it
-const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.1-70b-versatile";
+// Using openai/gpt-oss-20b model via Groq
+const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
 const SYSTEM_PROMPT = `You are a helpful health information assistant. You provide general health information, wellness tips, and educational content about common health conditions.
 
