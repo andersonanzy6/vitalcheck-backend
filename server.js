@@ -271,6 +271,53 @@ io.on("connection", (socket) => {
     }
   });
 
+  // --- AUDIO/VIDEO CALL LOGIC (100ms) ---
+
+  // Initiate a call to another user
+  socket.on("call-user", ({ targetUserId, roomId, callType, callerName }) => {
+    const targetSocketId = activeUsers.get(targetUserId);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit("incoming-call", {
+        from: socket.userId,
+        callerName,
+        roomId,
+        callType,
+      });
+    }
+  });
+
+  // User accepts the incoming call
+  socket.on("call-accepted", ({ targetUserId, roomId }) => {
+    const targetSocketId = activeUsers.get(targetUserId);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit("call-accepted", { roomId });
+    }
+  });
+
+  // User declines the incoming call
+  socket.on("call-declined", ({ targetUserId }) => {
+    const targetSocketId = activeUsers.get(targetUserId);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit("call-declined");
+    }
+  });
+
+  // User ends the call
+  socket.on("call-ended", ({ targetUserId }) => {
+    const targetSocketId = activeUsers.get(targetUserId);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit("call-ended");
+    }
+  });
+
+  // Notify caller that call was missed
+  socket.on("call-missed", ({ targetUserId }) => {
+    const targetSocketId = activeUsers.get(targetUserId);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit("call-missed");
+    }
+  });
+
   // Handle disconnect
   socket.on("disconnect", () => {
     console.log(`User disconnected: ${socket.userId}`);

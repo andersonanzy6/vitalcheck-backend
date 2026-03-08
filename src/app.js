@@ -10,6 +10,7 @@ const chatRoutes = require("./routes/chat.routes");
 const aiChatRoutes = require("./routes/ai-chat.routes");
 const adminRoutes = require("./routes/admin.routes");
 const paymentRoutes = require("./routes/payment.routes");
+const callRoutes = require("./routes/call");
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/ai-chat", aiChatRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/call", callRoutes);
 
 app.get("/", (req, res) => {
   res.json({ status: "API running" });
