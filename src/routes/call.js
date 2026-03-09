@@ -18,6 +18,7 @@ function getManagementToken() {
     access_key: HMS_ACCESS_KEY,
     type: "management",
     version: 2,
+    jti: uuidv4(),
   };
 
   return jwt.sign(payload, HMS_SECRET, {
@@ -38,6 +39,7 @@ function getAuthToken(roomId, userId, role = "guest") {
     role: role,
     type: "app",
     version: 2,
+    jti: uuidv4(),
   };
 
   return jwt.sign(payload, HMS_SECRET, {
