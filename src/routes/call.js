@@ -73,7 +73,7 @@ router.post("/create-room", authenticate, async (req, res) => {
     );
 
     const roomId = response.data.id;
-    const authToken = getAuthToken(roomId, req.user.id, "host");
+    const authToken = getAuthToken(roomId, req.user.id, "speaker");
 
     res.json({
       success: true,
@@ -106,7 +106,7 @@ router.post("/join-room", authenticate, async (req, res) => {
       });
     }
 
-    const authToken = getAuthToken(roomId, req.user.id, "guest");
+    const authToken = getAuthToken(roomId, req.user.id, "speaker");
 
     res.json({
       success: true,
