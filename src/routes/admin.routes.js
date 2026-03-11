@@ -36,6 +36,7 @@ router.get("/users", getAllUsers);
 router.get("/users/:userId", getUserById);
 router.put("/users/:userId/status", updateUserStatus);
 router.post("/users/:userId/suspend", suspendUser);
+router.post("/users/:userId/unsuspend", require("../controllers/admin.controller").unsuspendUser);
 router.delete("/users/:userId", deleteUser);
 
 // ============ DOCTOR MANAGEMENT ============
@@ -43,6 +44,8 @@ router.get("/doctors/pending", getPendingDoctors);
 router.post("/doctors/:doctorId/approve", approveDoctorRegistration);
 router.post("/doctors/:doctorId/reject", rejectDoctorRegistration);
 router.get("/doctors", getAllDoctors);
+router.post("/doctors", require("../controllers/admin.controller").createDoctor);
+router.put("/doctors/:doctorId", require("../controllers/admin.controller").editDoctor);
 
 // ============ ANALYTICS ============
 router.get("/stats/dashboard", getDashboardStats);

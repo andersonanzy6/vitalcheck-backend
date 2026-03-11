@@ -117,6 +117,38 @@ exports.suspendUser = async (req, res) => {
   }
 };
 
+// Unsuspend a user
+exports.unsuspendUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { status: "active" },
+      { new: true }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Create Notification
+    await Notification.create({
+      recipient: userId,
+      type: "account_unsuspended",
+      title: "Account Restored",
+      message: "Your account has been restored. You can now access all features.",
+    });
+
+    res.json({
+      message: "User unsuspended successfully",
+      user,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.deleteUser = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -261,6 +293,142 @@ exports.getAllDoctors = async (req, res) => {
         limit: parseInt(limit),
         pages: Math.ceil(total / limit),
       },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Create a new doctor account (by admin)
+exports.createDoctor = async (req, res) => {
+  try {
+    const bcrypt = require("bcryptjs");
+    const {
+      name,
+      email,
+      password,
+      phone,
+      specialization,
+      licenseNumber,
+      experience,
+      placeOfWork,
+      location,
+    } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !password || !specialization || !licenseNumber) {
+      return res.status(400).json({
+        message: "Missing required fields: name, email, password, specialization, licenseNumber",
+      });
+    }
+
+    // Check if email already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already registered" });
+    }
+
+    // Create user
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      role: "doctor",
+      phone: phone || "",
+      status: "active", // Admin-created doctors are auto-approved
+    });
+
+    // Create doctor profile
+    const Doctor = require("../models/Doctor");
+    const doctor = await Doctor.create({
+      user: user._id,
+      specialization,
+      licenseNumber,
+      experience: experience || 0,
+      placeOfWork: placeOfWork || "",
+      location: location || "",
+      verificationStatus: "approved", // Auto-approved by admin
+    });
+
+    // Create notification
+    await Notification.create({
+      recipient: user._id,
+      type: "account_created",
+      title: "Account Created",
+      message: "Your doctor account has been created by admin. You can now login and start accepting appointments.",
+    });
+
+    res.status(201).json({
+      message: "Doctor created successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+      },
+      doctor,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Edit doctor profile (by admin)
+exports.editDoctor = async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const {
+      name,
+      phone,
+      specialization,
+      licenseNumber,
+      experience,
+      placeOfWork,
+      location,
+      bio,
+      status,
+    } = req.body;
+
+    // Update user fields
+    const user = await User.findByIdAndUpdate(
+      doctorId,
+      {
+        ...(name && { name }),
+        ...(phone !== undefined && { phone }),
+        ...(bio !== undefined && { bio }),
+        ...(status && { status }),
+      },
+      { new: true }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User/Doctor not found" });
+    }
+
+    // Update doctor profile
+    const Doctor = require("../models/Doctor");
+    const doctor = await Doctor.findOneAndUpdate(
+      { user: doctorId },
+      {
+        ...(specialization && { specialization }),
+        ...(licenseNumber && { licenseNumber }),
+        ...(experience !== undefined && { experience }),
+        ...(placeOfWork && { placeOfWork }),
+        ...(location && { location }),
+      },
+      { new: true }
+    );
+
+    if (!doctor) {
+      return res.status(404).json({ message: "Doctor profile not found" });
+    }
+
+    res.json({
+      message: "Doctor updated successfully",
+      user,
+      doctor,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
