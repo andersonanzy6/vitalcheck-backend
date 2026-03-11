@@ -131,6 +131,11 @@ exports.getProfile = async (req, res) => {
 // Update user profile
 exports.updateProfile = async (req, res) => {
   try {
+    if (!req.user || !req.user._id) {
+      console.error("Auth Error: req.user is missing", { user: req.user });
+      return res.status(401).json({ message: "Authentication failed. Please login again." });
+    }
+
     const {
       name, age, gender, bio,
       phone, address, medicalHistory, bloodGroup
@@ -185,6 +190,10 @@ exports.updateProfile = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Profile update error:", error);
+    res.status(500).json({ 
+      message: error.message || "Failed to update profile",
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
