@@ -6,6 +6,8 @@ const http = require("http");
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const Message = require("./src/models/Message");
+const User = require("./src/models/User");
+const Doctor = require("./src/models/Doctor");
 
 const PORT = process.env.PORT || 5000;
 
@@ -20,14 +22,13 @@ const io = new Server(server, {
   },
 });
 
-// Store active users
-const activeUsers = new Map();
+// Store active users with their role info
+const activeUsers = new Map(); // userId -> { socketId, role, isOnline }
 // Store pending consultation requests: queueId -> { patientId, doctorId, specialization, timer }
 const pendingConsultations = new Map();
 
 // Helper to find available doctor by specialization
 const findAvailableDoctor = async (specialization, excludeDoctorId) => {
-  const Doctor = require("./src/models/Doctor");
   const availableDoctor = await Doctor.findOne({
     specialization,
     isOnline: true,
@@ -55,14 +56,42 @@ io.use((socket, next) => {
 });
 
 // Socket.io connection
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   console.log(`User connected: ${socket.userId}`);
 
-  // Add user to active users
-  activeUsers.set(socket.userId, socket.id);
+  try {
+    // Fetch user role from database
+    const user = await User.findById(socket.userId);
+    const userRole = user?.role || "unknown";
+    
+    // Add user to active users
+    activeUsers.set(socket.userId, {
+      socketId: socket.id,
+      role: userRole,
+      isOnline: true,
+    });
 
-  // Emit active users to all clients
-  io.emit("active-users", Array.from(activeUsers.keys()));
+    // If doctor goes online, notify all patients in chat conversations
+    if (userRole === "doctor") {
+      console.log(`Doctor ${socket.userId} is now ONLINE`);
+      io.emit("user_online", {
+        userId: socket.userId,
+        role: "doctor",
+        timestamp: new Date(),
+      });
+
+      // Update doctor's online status in database
+      await Doctor.findOneAndUpdate(
+        { user: socket.userId },
+        { isOnline: true, lastSeen: new Date() }
+      );
+    }
+
+    // Emit active users to all clients
+    io.emit("active-users", Array.from(activeUsers.keys()));
+  } catch (error) {
+    console.error("Error on user connection:", error);
+  }
 
   // Listen for new messages
   socket.on("send-message", async (data) => {
@@ -319,8 +348,30 @@ io.on("connection", (socket) => {
   });
 
   // Handle disconnect
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     console.log(`User disconnected: ${socket.userId}`);
+    
+    const userData = activeUsers.get(socket.userId);
+    
+    // If doctor goes offline, notify all patients
+    if (userData?.role === "doctor") {
+      console.log(`Doctor ${socket.userId} is now OFFLINE`);
+      
+      const lastSeenTime = new Date();
+      
+      // Update doctor's online status in database
+      await Doctor.findOneAndUpdate(
+        { user: socket.userId },
+        { isOnline: false, lastSeen: lastSeenTime }
+      );
+      
+      io.emit("user_offline", {
+        userId: socket.userId,
+        role: "doctor",
+        lastSeen: lastSeenTime,
+      });
+    }
+    
     activeUsers.delete(socket.userId);
     io.emit("active-users", Array.from(activeUsers.keys()));
   });
