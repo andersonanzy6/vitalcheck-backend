@@ -98,6 +98,8 @@ io.on("connection", async (socket) => {
     try {
       const { receiverId, message, appointmentId, messageType, fileUrl } = data;
 
+      console.log(`[Message] From ${socket.userId} to ${receiverId}: ${message.substring(0, 50)}...`);
+
       // Save message to database
       const newMessage = await Message.create({
         sender: socket.userId,
@@ -113,14 +115,20 @@ io.on("connection", async (socket) => {
         .populate("receiver", "name email role");
 
       // Send to receiver if online
-      const receiverSocketId = activeUsers.get(receiverId);
+      const receiverData = activeUsers.get(receiverId);
+      const receiverSocketId = receiverData?.socketId;
+      
       if (receiverSocketId) {
-        io.to(receiverSocketId).emit("receive-message", populatedMessage);
+        console.log(`[Message] Delivering to receiver socket: ${receiverSocketId}`);
+        io.to(receiverSocketId).emit("message-received", populatedMessage);
+      } else {
+        console.log(`[Message] Receiver ${receiverId} not online. Active users: ${Array.from(activeUsers.keys()).join(', ')}`);
       }
 
       // Send confirmation back to sender
       socket.emit("message-sent", populatedMessage);
     } catch (error) {
+      console.error("[Message Error]", error);
       socket.emit("message-error", { message: error.message });
     }
   });
@@ -178,7 +186,8 @@ io.on("connection", async (socket) => {
       const patientId = socket.userId;
       const queueId = `q_${Date.now()}_${patientId}`;
 
-      const doctorSocketId = activeUsers.get(doctorId);
+      const doctorData = activeUsers.get(doctorId);
+      const doctorSocketId = doctorData?.socketId;
 
       if (doctorSocketId) {
         // Notify doctor
@@ -194,7 +203,10 @@ io.on("connection", async (socket) => {
           if (pending) {
             console.log(`Consultation ${queueId} timed out. Reassigning...`);
             // Notify doctor that request expired
-            io.to(activeUsers.get(doctorId)).emit("request-timeout", { queueId });
+            const doctorData = activeUsers.get(doctorId);
+            if (doctorData?.socketId) {
+              io.to(doctorData.socketId).emit("request-timeout", { queueId });
+            }
 
             // Reassign logic
             const newDoctor = await findAvailableDoctor(specialization, doctorId);
@@ -202,7 +214,8 @@ io.on("connection", async (socket) => {
               pending.doctorId = newDoctor.user._id.toString();
               pendingConsultations.set(queueId, pending);
 
-              const newDoctorSocketId = activeUsers.get(pending.doctorId);
+              const newDoctorData = activeUsers.get(pending.doctorId);
+              const newDoctorSocketId = newDoctorData?.socketId;
               if (newDoctorSocketId) {
                 io.to(newDoctorSocketId).emit("consultation-request", {
                   queueId,
@@ -211,15 +224,21 @@ io.on("connection", async (socket) => {
                 });
               } else {
                 // Should not happen if findAvailableDoctor checks isOnline
-                io.to(activeUsers.get(patientId)).emit("consultation-failed", {
-                  message: "No doctors available at the moment."
-                });
+                const patientData = activeUsers.get(patientId);
+                if (patientData?.socketId) {
+                  io.to(patientData.socketId).emit("consultation-failed", {
+                    message: "No doctors available at the moment."
+                  });
+                }
                 pendingConsultations.delete(queueId);
               }
             } else {
-              io.to(activeUsers.get(patientId)).emit("consultation-failed", {
-                message: "No other doctors available for your specialization."
-              });
+              const patientData = activeUsers.get(patientId);
+              if (patientData?.socketId) {
+                io.to(patientData.socketId).emit("consultation-failed", {
+                  message: "No other doctors available for your specialization."
+                });
+              }
               pendingConsultations.delete(queueId);
             }
           }
@@ -241,7 +260,8 @@ io.on("connection", async (socket) => {
 
     if (pending) {
       clearTimeout(pending.timer);
-      const patientSocketId = activeUsers.get(pending.patientId);
+      const patientData = activeUsers.get(pending.patientId);
+      const patientSocketId = patientData?.socketId;
       if (patientSocketId) {
         io.to(patientSocketId).emit("consultation-accepted", {
           doctorId: socket.userId,
@@ -266,30 +286,33 @@ io.on("connection", async (socket) => {
         pending.doctorId = newDoctor.user._id.toString();
         pendingConsultations.set(queueId, pending);
 
-        // Start new timer for the new doctor — notify patient if they also don't respond
+        // Start new timer for the new doctor
         pending.timer = setTimeout(async () => {
           const stillPending = pendingConsultations.get(queueId);
           if (stillPending) {
-            const patientSocketId = activeUsers.get(stillPending.patientId);
+            const patientData = activeUsers.get(stillPending.patientId);
+            const patientSocketId = patientData?.socketId;
             if (patientSocketId) {
               io.to(patientSocketId).emit("consultation-failed", {
-                message: "No doctors are currently available. Please try again later.",
+                message: "No doctors are currently available. Please try again later."
               });
             }
             pendingConsultations.delete(queueId);
           }
         }, 120000);
 
-        const newDoctorSocketId = activeUsers.get(pending.doctorId);
+        const newDoctorData = activeUsers.get(pending.doctorId);
+        const newDoctorSocketId = newDoctorData?.socketId;
         if (newDoctorSocketId) {
           io.to(newDoctorSocketId).emit("consultation-request", {
             queueId,
             patientId: pending.patientId,
-            timeout: 120000,
+            timeout: 120000
           });
         }
       } else {
-        const patientSocketId = activeUsers.get(pending.patientId);
+        const patientData = activeUsers.get(pending.patientId);
+        const patientSocketId = patientData?.socketId;
         if (patientSocketId) {
           io.to(patientSocketId).emit("consultation-failed", {
             message: "No other doctors available."
@@ -304,20 +327,32 @@ io.on("connection", async (socket) => {
 
   // Initiate a call to another user
   socket.on("call-user", ({ targetUserId, roomId, callType, callerName }) => {
-    const targetSocketId = activeUsers.get(targetUserId);
+    console.log(`[Call] ${socket.userId} initiating ${callType} call to ${targetUserId}`);
+    const targetData = activeUsers.get(targetUserId);
+    const targetSocketId = targetData?.socketId;
+    
     if (targetSocketId) {
+      console.log(`[Call] Sending incoming-call to socket ${targetSocketId}`);
       io.to(targetSocketId).emit("incoming-call", {
         from: socket.userId,
         callerName,
         roomId,
         callType,
       });
+    } else {
+      console.log(`[Call] Target user ${targetUserId} not online. Active users: ${Array.from(activeUsers.keys()).join(', ')}`);
+      socket.emit("call-failed", {
+        message: `User ${targetUserId} is not online`
+      });
     }
   });
 
   // User accepts the incoming call
   socket.on("call-accepted", ({ targetUserId, roomId }) => {
-    const targetSocketId = activeUsers.get(targetUserId);
+    console.log(`[Call] ${socket.userId} accepted call from ${targetUserId}`);
+    const targetData = activeUsers.get(targetUserId);
+    const targetSocketId = targetData?.socketId;
+    
     if (targetSocketId) {
       io.to(targetSocketId).emit("call-accepted", { roomId });
     }
@@ -325,7 +360,10 @@ io.on("connection", async (socket) => {
 
   // User declines the incoming call
   socket.on("call-declined", ({ targetUserId }) => {
-    const targetSocketId = activeUsers.get(targetUserId);
+    console.log(`[Call] ${socket.userId} declined call from ${targetUserId}`);
+    const targetData = activeUsers.get(targetUserId);
+    const targetSocketId = targetData?.socketId;
+    
     if (targetSocketId) {
       io.to(targetSocketId).emit("call-declined");
     }
@@ -333,7 +371,10 @@ io.on("connection", async (socket) => {
 
   // User ends the call
   socket.on("call-ended", ({ targetUserId }) => {
-    const targetSocketId = activeUsers.get(targetUserId);
+    console.log(`[Call] ${socket.userId} ended call with ${targetUserId}`);
+    const targetData = activeUsers.get(targetUserId);
+    const targetSocketId = targetData?.socketId;
+    
     if (targetSocketId) {
       io.to(targetSocketId).emit("call-ended");
     }
@@ -341,7 +382,10 @@ io.on("connection", async (socket) => {
 
   // Notify caller that call was missed
   socket.on("call-missed", ({ targetUserId }) => {
-    const targetSocketId = activeUsers.get(targetUserId);
+    console.log(`[Call] ${socket.userId} call to ${targetUserId} was missed`);
+    const targetData = activeUsers.get(targetUserId);
+    const targetSocketId = targetData?.socketId;
+    
     if (targetSocketId) {
       io.to(targetSocketId).emit("call-missed");
     }
