@@ -58,8 +58,28 @@ exports.getDoctorById = async (req, res) => {
       doctor = await Doctor.findOne({ user: id }).populate("user", "name email isOnline");
     }
     
+    // If still not found, return just user info
     if (!doctor) {
-      return res.status(404).json({ message: "Doctor not found" });
+      const User = require("../models/User");
+      const user = await User.findById(id).select("name email isOnline");
+      
+      if (!user) {
+        return res.status(404).json({ message: "Doctor and User not found" });
+      }
+      
+      // Return basic user info as fallback
+      return res.json({
+        _id: user._id,
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          isOnline: user.isOnline || false
+        },
+        isOnline: user.isOnline || false,
+        lastSeen: new Date(),
+        role: user.role
+      });
     }
     
     // Return doctor with online status

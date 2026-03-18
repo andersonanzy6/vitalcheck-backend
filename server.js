@@ -50,15 +50,18 @@ io.use((socket, next) => {
   const token = socket.handshake.auth.token;
 
   if (!token) {
-    return next(new Error("Authentication error"));
+    console.error('[Socket Auth] No token provided');
+    return next(new Error("Authentication error: No token"));
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    socket.userId = decoded.id;
+    socket.userId = decoded.id || decoded._id;
+    console.log('[Socket Auth] ✅ Token verified for user:', socket.userId);
     next();
   } catch (error) {
-    next(new Error("Authentication error"));
+    console.error('[Socket Auth] ❌ Token verification failed:', error.message);
+    next(new Error("Authentication error: Invalid token"));
   }
 });
 
