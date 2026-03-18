@@ -14,7 +14,19 @@ const callRoutes = require("./routes/call");
 
 const app = express();
 
-app.use(cors());
+// CORS configuration for Render and local development
+const corsOptions = {
+  origin: [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://vitalcheck-56uj.onrender.com",
+    "https://vitalcheck-web.onrender.com"
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);

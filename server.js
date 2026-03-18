@@ -17,8 +17,14 @@ const server = http.createServer(app);
 // Initialize Socket.io
 const io = new Server(server, {
   cors: {
-    origin: "*", // In production, specify your frontend URL
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "https://vitalcheck-56uj.onrender.com",
+      "https://vitalcheck-web.onrender.com"
+    ],
     methods: ["GET", "POST"],
+    credentials: true
   },
 });
 

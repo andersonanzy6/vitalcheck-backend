@@ -44,13 +44,32 @@ exports.getAllDoctors = async (req, res) => {
   }
 };
 
-// Get a single doctor
+// Get a single doctor - by doctor ID or user ID
 exports.getDoctorById = async (req, res) => {
   try {
-    const doctor = await Doctor.findById(req.params.id).populate("user", "name email");
-    if (!doctor) return res.status(404).json({ message: "Doctor not found" });
-    res.json(doctor);
+    const { id } = req.params;
+    let doctor;
+    
+    // Try to find by Doctor ID first
+    doctor = await Doctor.findById(id).populate("user", "name email isOnline");
+    
+    // If not found, try to find by User ID
+    if (!doctor) {
+      doctor = await Doctor.findOne({ user: id }).populate("user", "name email isOnline");
+    }
+    
+    if (!doctor) {
+      return res.status(404).json({ message: "Doctor not found" });
+    }
+    
+    // Return doctor with online status
+    const doctorData = doctor.toObject();
+    doctorData.isOnline = doctor.user?.isOnline || false;
+    doctorData.lastSeen = doctor.lastSeen;
+    
+    res.json(doctorData);
   } catch (error) {
+    console.error('Error fetching doctor:', error);
     res.status(500).json({ message: error.message });
   }
 };
