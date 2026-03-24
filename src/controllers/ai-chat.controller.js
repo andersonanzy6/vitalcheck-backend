@@ -246,12 +246,7 @@ Summary:`,
 
 exports.symptomCheck = async (req, res) => {
   try {
-    // Validate auth context
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ message: "Not authorized" });
-    }
-
+    // Public endpoint - no auth required
     // Validate payload
     const { messages } = req.body || {};
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -272,7 +267,7 @@ exports.symptomCheck = async (req, res) => {
     const cacheKey = symptomCheckCache.generateKey(messages);
     const cachedResponse = symptomCheckCache.get(cacheKey);
     if (cachedResponse) {
-      console.log(`[CACHE HIT] Symptom check for User ${userId}`);
+      console.log(`[CACHE HIT] Symptom check`);
       return res.json({ ...cachedResponse, fromCache: true });
     }
 
@@ -338,8 +333,8 @@ AI:`;
     jsonResponse.suggestDoctor = typeof jsonResponse.suggestDoctor === "boolean" ? jsonResponse.suggestDoctor : true;
     jsonResponse.flowStep = typeof jsonResponse.flowStep === "string" ? jsonResponse.flowStep : "unknown";
 
-    // Log the query with minimal PII
-    console.log(`[CACHE MISS] Symptom Check for User ${userId}: ${jsonResponse.urgencyLevel}`);
+    // Log the query
+    console.log(`[CACHE MISS] Symptom Check: ${jsonResponse.urgencyLevel}`);
 
     // Cache the response for future requests
     symptomCheckCache.set(cacheKey, jsonResponse);
