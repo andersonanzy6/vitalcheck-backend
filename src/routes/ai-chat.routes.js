@@ -35,7 +35,4 @@ router.delete("/:conversationId", deleteConversation);
 // Get a summary of the conversation
 router.get("/:conversationId/summary", getDischargeSummary);
 
-// Structured symptom check
-router.post("/symptom-check", symptomCheck);
-
 module.exports = router;
