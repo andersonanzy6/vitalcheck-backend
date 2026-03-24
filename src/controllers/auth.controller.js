@@ -1,7 +1,9 @@
 const User = require("../models/User");
 const Doctor = require("../models/Doctor");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const generateToken = require("../utils/jwt");
+const { sendPasswordResetEmail } = require("../utils/emailService");
 
 exports.register = async (req, res) => {
   try {
@@ -88,6 +90,58 @@ exports.login = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      // do not reveal whether user exists
+      return res.json({ message: 'If that email exists, a reset link has been sent.' });
+    }
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const frontEndUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+    const resetLink = `${frontEndUrl}/reset-password?token=${token}`;
+
+    await sendPasswordResetEmail(user.email, resetLink);
+
+    res.json({ message: 'If that email exists, a reset link has been sent.' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ message: 'Unable to process password reset request.' });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ message: 'Token and new password are required' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid token or user not found' });
+    }
+
+    user.password = password;
+    await user.save();
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    if (error.name === 'TokenExpiredError') {
+      return res.status(400).json({ message: 'Reset link has expired. Please request a new one.' });
+    }
+    res.status(500).json({ message: 'Unable to reset password.' });
   }
 };
 

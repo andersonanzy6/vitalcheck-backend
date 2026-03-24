@@ -11,7 +11,10 @@ const {
 } = require("../controllers/ai-chat.controller");
 const auth = require("../middleware/auth.middleware");
 
-// Protect all routes with authentication
+// Public symptom checker route (no login required)
+router.post("/symptom-check", symptomCheck);
+
+// Protect all remaining routes with authentication
 router.use(auth);
 
 // Send a message to AI and get response
