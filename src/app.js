@@ -21,7 +21,8 @@ const corsOptions = {
     "http://localhost:5173",
     "https://vitalcheck-56uj.onrender.com",
     "https://vitalcheck-web.onrender.com",
-    "https://app.vitalcheck.com.ng"
+    "https://app.vitalcheck.com.ng",
+    "https://admin.vitalcheck.com.ng"
   ],
   credentials: true,
   optionsSuccessStatus: 200
