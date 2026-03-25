@@ -108,9 +108,16 @@ exports.forgotPassword = async (req, res) => {
     const frontEndUrl = process.env.CLIENT_URL || 'http://localhost:3000';
     const resetLink = `${frontEndUrl}/reset-password?token=${token}`;
 
-    await sendPasswordResetEmail(user.email, resetLink);
-
+    // Respond quickly to avoid frontend timeout and send mail in background
     res.json({ message: 'If that email exists, a reset link has been sent.' });
+
+    sendPasswordResetEmail(user.email, resetLink)
+      .then(() => {
+        console.log('Password reset email sent to', user.email);
+      })
+      .catch((err) => {
+        console.error('Forgot password email error (non-blocking):', err);
+      });
   } catch (error) {
     console.error('Forgot password error:', error);
     res.status(500).json({ message: 'Unable to process password reset request.' });
