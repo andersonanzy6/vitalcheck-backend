@@ -51,17 +51,17 @@ exports.getDoctorById = async (req, res) => {
     let doctor;
     
     // Try to find by Doctor ID first
-    doctor = await Doctor.findById(id).populate("user", "name email isOnline");
+    doctor = await Doctor.findById(id).populate("user", "name email isOnline profileImage coverImage");
     
     // If not found, try to find by User ID
     if (!doctor) {
-      doctor = await Doctor.findOne({ user: id }).populate("user", "name email isOnline");
+      doctor = await Doctor.findOne({ user: id }).populate("user", "name email isOnline profileImage coverImage");
     }
     
     // If still not found, return just user info
     if (!doctor) {
       const User = require("../models/User");
-      const user = await User.findById(id).select("name email isOnline");
+      const user = await User.findById(id).select("name email isOnline profileImage coverImage");
       
       if (!user) {
         return res.status(404).json({ message: "Doctor and User not found" });
@@ -74,7 +74,9 @@ exports.getDoctorById = async (req, res) => {
           _id: user._id,
           name: user.name,
           email: user.email,
-          isOnline: user.isOnline || false
+          isOnline: user.isOnline || false,
+          profileImage: user.profileImage,
+          coverImage: user.coverImage
         },
         isOnline: user.isOnline || false,
         lastSeen: new Date(),
