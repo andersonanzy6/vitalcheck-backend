@@ -3,7 +3,7 @@ const { Resend } = require("resend");
 // Initialize Resend with API key
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = "onboarding@resend.dev";
+const FROM_EMAIL = "VitalCheck <no-reply@send.vitalcheck.com.ng>";
 
 // Send appointment confirmation email
 exports.sendAppointmentConfirmation = async (userEmail, appointmentDetails) => {
