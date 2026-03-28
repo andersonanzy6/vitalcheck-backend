@@ -105,7 +105,7 @@ exports.forgotPassword = async (req, res) => {
     }
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    const frontEndUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+    const frontEndUrl = process.env.CLIENT_URL || 'http://app.vitalcheck.com.ng';
     const resetLink = `${frontEndUrl}/reset-password?token=${token}`;
 
     // Respond quickly to avoid frontend timeout and send mail in background
