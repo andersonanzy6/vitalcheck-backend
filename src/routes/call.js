@@ -18,15 +18,24 @@ router.get("/ice-servers", authenticate, (req, res) => {
     { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }
   ];
 
+  // Two supported setups:
+  // 1) Fixed credential pair (e.g. Metered dashboard credential):
+  //    TURN_USERNAME + TURN_PASSWORD
+  // 2) Minted short-lived HMAC credentials (coturn static-auth /
+  //    Cloudflare Calls TURN): TURN_SHARED_SECRET
+  const turnUser = process.env.TURN_USERNAME;
+  const turnPass = process.env.TURN_PASSWORD;
   const sharedSecret = process.env.TURN_SHARED_SECRET;
-  if (turnUrls.length > 0 && sharedSecret) {
+
+  if (turnUrls.length > 0 && turnUser && turnPass) {
+    iceServers.push({ urls: turnUrls, username: turnUser, credential: turnPass });
+  } else if (turnUrls.length > 0 && sharedSecret) {
     const ttl = parseInt(process.env.TURN_TTL_SECONDS || "3600", 10);
     const username = String(Math.floor(Date.now() / 1000) + ttl);
     const credential = crypto
       .createHmac("sha1", sharedSecret)
       .update(username)
       .digest("base64");
-
     iceServers.push({ urls: turnUrls, username, credential });
   }
 
