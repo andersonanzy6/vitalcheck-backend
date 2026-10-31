@@ -5,7 +5,7 @@ const callSessionSchema = new mongoose.Schema(
         consultation: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Consultation",
-            required: true,
+            default: null,
         },
         caller: {
             type: mongoose.Schema.Types.ObjectId,
